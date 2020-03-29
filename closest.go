@@ -2,6 +2,7 @@ package main
 
 import "sort"
 
+// calculates which source has a value closest to the reference value from the opr
 type closest struct {
 	sources []source
 }

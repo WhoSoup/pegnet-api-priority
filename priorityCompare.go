@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pegnet/pegnet/modules/opr"
@@ -18,12 +18,14 @@ import (
 	"github.com/pegnet/pegnet/polling"
 )
 
+// opr chain id
 var chain = "a642a8674f46696cc47fdb6b65f9c87b2a19c5ea8123b3d2f0c13b6f33a9d5ef"
 
 type PriorityCompare struct {
 	ds *polling.DataSources
 }
 
+// download entries by height
 func (pc *PriorityCompare) getEntries(height int64) ([]*factom.Entry, error) {
 	dblock, _, err := factom.GetDBlockByHeight(height)
 	if err != nil {
@@ -39,24 +41,7 @@ func (pc *PriorityCompare) getEntries(height int64) ([]*factom.Entry, error) {
 	return nil, fmt.Errorf("unable to find opr eblock for this height")
 }
 
-type closeness struct {
-	source string
-	diff   uint64
-	prct   float64
-}
-
-func (c closeness) String() string {
-	return fmt.Sprintf("[Source: %s, Diff: %d, %.2f%%]", c.source, c.diff, c.prct*100)
-}
-
-func valString(assets []opr.AssetUint) string {
-	var sb strings.Builder
-	for _, ass := range assets {
-		sb.WriteString(fmt.Sprintf("#%s-%d", ass.Name, ass.Value))
-	}
-	return sb.String()
-}
-
+// print the results of a `compete` run
 func (pc *PriorityCompare) Results(prefix string, comp *compete) {
 	var sources []string
 	for _, ass := range pc.ds.PriorityList {
@@ -64,24 +49,27 @@ func (pc *PriorityCompare) Results(prefix string, comp *compete) {
 	}
 
 	sort.Slice(sources, func(i, j int) bool {
-		if sources[i] == "FixedUSD" {
+		if sources[i] == "FixedUSD" { // hardcode to be 0
 			return true
 		}
 		return comp.less(sources[i], sources[j])
 	})
 
-	barrier := true
+	var once sync.Once
 	var out strings.Builder
 	for i, s := range sources {
-		if barrier && !comp.hasWinner(s) && s != "FixedUSD" {
-			barrier = false
-			out.WriteString("|| ")
+		// print || before sources without any winners
+		if !comp.hasWinner(s) && s != "FixedUSD" {
+			once.Do(func() {
+				out.WriteString("\nUnused: ")
+			})
 		}
 		out.WriteString(fmt.Sprintf("%s=%d ", s, i))
 	}
-	log.Printf("%s %s", prefix, out.String())
+	fmt.Printf("%s\n  Used: %s\n", prefix, out.String())
 }
 
+// BandCheck compares if configured sources are within a 1% band of oprs
 func (pc *PriorityCompare) BandCheck(entries []*factom.Entry, price map[string]map[string]float64) {
 	count := 0
 	for _, e := range entries {
@@ -96,7 +84,8 @@ func (pc *PriorityCompare) BandCheck(entries []*factom.Entry, price map[string]m
 			best := pc.ds.AssetSources[asset.Name][0]
 			val := price[asset.Name][best]
 
-			if math.Abs(val-asset.Value)/val > 1 {
+			pct := val * 0.01
+			if asset.Value < val-pct || asset.Value > val+pct {
 				inside = false
 			}
 		}
@@ -110,25 +99,34 @@ func (pc *PriorityCompare) BandCheck(entries []*factom.Entry, price map[string]m
 	log.Printf("Current priority order is within 1%% of %d/%d OPRs (%.2f%%)", count, len(entries), float64(count)/float64(len(entries))*100)
 }
 
+// Compares entries with price data
 func (pc *PriorityCompare) Compare(entries []*factom.Entry, price map[string]map[string]float64) {
-	comp := new(compete)
+	comp := new(compete) // global rank
 	miner := make(map[string]bool)
 
-	log.Print("====================================")
-	for _, e := range entries {
+	var once sync.Once
+	for i, e := range entries {
 		tmp, err := opr.ParseV2Content(e.Content)
 		if err != nil {
 			log.Println(err)
+			continue
 		}
 		o := &opr.V4Content{V2Content: *tmp}
 
+		// only do once per miner
 		if miner[o.GetID()] {
 			continue
 		}
 		miner[o.GetID()] = true
 
-		compminer := new(compete)
+		once.Do(func() {
+			fmt.Printf("=============== Report for Height %d ===============\n", o.GetHeight())
+		})
+		if i > 0 {
+			fmt.Println()
+		}
 
+		compminer := new(compete) // per miner rank
 		for _, ass := range o.GetOrderedAssetsUint() {
 			if ass.Name == "USD" {
 				continue
@@ -156,118 +154,9 @@ func (pc *PriorityCompare) Compare(entries []*factom.Entry, price map[string]map
 		pc.Results(fmt.Sprintf("OPR [miner = %s]", o.GetID()), compminer)
 	}
 
-	log.Print("====================================")
+	fmt.Print("========================================================\n")
 	pc.Results("Total", comp)
-	pc.BandCheck(entries, price)
-}
-
-func (pc *PriorityCompare) Compare2(entries []*factom.Entry, price map[string]map[string]float64) {
-	//comp := new(compete)
-	miner := make(map[string]bool)
-
-	//sourceCount := make(map[string]int)
-
-	beats := make(map[string]int)
-
-	for _, e := range entries {
-		tmp, err := opr.ParseV2Content(e.Content)
-		if err != nil {
-			log.Println(err)
-		}
-		o := &opr.V4Content{V2Content: *tmp}
-
-		if miner[o.GetID()] {
-			continue
-		}
-		miner[o.GetID()] = true
-
-		//compminer := new(compete)
-
-		//log.Printf("OPR [miner = %s]", o.GetID())
-		for _, ass := range o.GetOrderedAssetsUint() {
-			if ass.Name == "USD" {
-				continue
-			}
-			sources, ok := price[ass.Name]
-			if !ok {
-				log.Printf("asset doesn't have a source for some reason: %s", ass.Name)
-				continue
-			}
-
-			var close []closeness
-			for source, val := range sources {
-				uval := opr.FloatToUint64(val)
-				diff := absDiff(uval, ass.Value)
-				close = append(close, closeness{source: source, diff: diff, prct: float64(diff) / float64(ass.Value)})
-			}
-
-			sort.Slice(close, func(i, j int) bool {
-				return close[i].diff < close[j].diff
-			})
-
-			//log.Printf("Closest source for %s (%f): %s", ass.Name, opr.Uint64ToFloat(ass.Value), close[0].String())
-
-			s := ""
-			for _, possible := range pc.ds.AssetSources[ass.Name] {
-				if close[0].source == possible {
-					s += fmt.Sprintf(" (%s)", possible)
-				} else {
-					beats[fmt.Sprintf("%s-%s", close[0].source, possible)]++
-					s += fmt.Sprintf(" %s", possible)
-				}
-			}
-			//log.Printf("Possible sources for %s: %s", ass.Name, s)
-		}
-	}
-
-	var sources []string
-	for _, ass := range pc.ds.PriorityList {
-		sources = append(sources, ass.DataSource.Name())
-	}
-
-	beatTotal := make(map[string]int)
-	beatCount := make(map[string]int)
-
-	for _, possible := range pc.ds.AssetSources {
-		for _, A := range possible {
-			for _, B := range possible {
-				if A == B {
-					continue
-				}
-				beatTotal[fmt.Sprintf("%s", A)]++
-				beatTotal[fmt.Sprintf("%s", B)]++
-				a, oka := beats[fmt.Sprintf("%s-%s", A, B)]
-				b, okb := beats[fmt.Sprintf("%s-%s", B, A)]
-
-				if oka && !okb || oka && a > b {
-					beatCount[fmt.Sprintf("%s", A)]++
-				}
-				if okb && !oka || okb && b > a {
-					beatCount[fmt.Sprintf("%s", B)]++
-				}
-			}
-		}
-	}
-
-	sort.Slice(sources, func(i, j int) bool {
-		a := sources[i]
-		b := sources[j]
-		if a == "FixedUSD" {
-			return true
-		}
-		winrateA := float64(beatCount[fmt.Sprintf("%s", a)]) / float64(beatTotal[fmt.Sprintf("%s", a)])
-		winrateB := float64(beatCount[fmt.Sprintf("%s", b)]) / float64(beatTotal[fmt.Sprintf("%s", b)])
-		return winrateA > winrateB
-	})
-
-	log.Print(sources)
-	s := ""
-	for i, s := range sources {
-		s += fmt.Sprintf("%s=%d ", s, i+1)
-	}
-	log.Print(s)
-
-	log.Printf("%v", beats)
+	fmt.Print("========================================================\n")
 }
 
 func (pc *PriorityCompare) Debug() {
@@ -278,10 +167,12 @@ func (pc *PriorityCompare) Debug() {
 	json.Unmarshal([]byte(DEBUGopr), &entries)
 
 	pc.Compare(entries, price)
+	pc.BandCheck(entries, price)
 	os.Exit(0)
 }
 
 func (pc *PriorityCompare) Run() error {
+	// get current minute info just for display purposes
 	minute, err := factom.GetCurrentMinute()
 	if err != nil {
 		return err
@@ -340,7 +231,7 @@ func (pc *PriorityCompare) Run() error {
 				pc.BandCheck(entries, lastPrices)
 			}
 		} else {
-			log.Println("Don't have last block's prices to compare entries to")
+			log.Println("Don't have last block's prices to compare entries to, need to wait for next block")
 		}
 
 		lastPrices = pa

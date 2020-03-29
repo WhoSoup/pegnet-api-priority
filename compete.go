@@ -1,5 +1,14 @@
 package main
 
+// keeps track of data sources competing against each other
+// each source is a "player"
+// for every currency, there are X sources with that data
+// the source with a price closest to the one in the OPR is a winner
+// the other sources are losers
+//
+// the less(string,string) function can be used to sort the external
+// list of sources in the order of which source won the largest percentage
+// of matchups
 type compete struct {
 	players map[string]*player
 }
@@ -33,6 +42,7 @@ func (c *compete) less(a, b string) bool {
 	return c.player(a).score() > c.player(b).score()
 }
 
+// keeping count for a single player
 type player struct {
 	beats    int
 	matchups int
