@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -143,11 +141,10 @@ func (pc *PriorityCompare) Compare(entries []*factom.Entry, price map[string]map
 				c.add(source, uval, ass.Value)
 			}
 
-			winner, _ := c.best()
-
 			for _, name := range pc.ds.AssetSources[ass.Name] {
-				comp.add(name, len(pc.ds.AssetSources[ass.Name])-1, winner == name)
-				compminer.add(name, len(pc.ds.AssetSources[ass.Name])-1, winner == name)
+				best := c.isBest(name)
+				comp.add(name, len(pc.ds.AssetSources[ass.Name])-1, best)
+				compminer.add(name, len(pc.ds.AssetSources[ass.Name])-1, best)
 			}
 		}
 
@@ -157,18 +154,6 @@ func (pc *PriorityCompare) Compare(entries []*factom.Entry, price map[string]map
 	fmt.Print("========================================================\n")
 	pc.Results("Total", comp)
 	fmt.Print("========================================================\n")
-}
-
-func (pc *PriorityCompare) Debug() {
-	var price map[string]map[string]float64
-	json.Unmarshal([]byte(DEBUGdata), &price)
-
-	var entries []*factom.Entry
-	json.Unmarshal([]byte(DEBUGopr), &entries)
-
-	pc.Compare(entries, price)
-	pc.BandCheck(entries, price)
-	os.Exit(0)
 }
 
 func (pc *PriorityCompare) Run() error {
