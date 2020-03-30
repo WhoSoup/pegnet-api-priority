@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -68,7 +70,7 @@ func (pc *PriorityCompare) Results(prefix string, comp *compete) {
 }
 
 // BandCheck compares if configured sources are within a 1% band of oprs
-func (pc *PriorityCompare) BandCheck(entries []*factom.Entry, price map[string]map[string]float64) {
+func (pc *PriorityCompare) BandCheck(entries []*factom.Entry, price map[string]map[string]polling.PegItem) {
 	count := 0
 	for _, e := range entries {
 		tmp, err := opr.ParseV2Content(e.Content)
@@ -82,8 +84,8 @@ func (pc *PriorityCompare) BandCheck(entries []*factom.Entry, price map[string]m
 			best := pc.ds.AssetSources[asset.Name][0]
 			val := price[asset.Name][best]
 
-			pct := val * 0.01
-			if asset.Value < val-pct || asset.Value > val+pct {
+			pct := val.Value * 0.01
+			if asset.Value < val.Value-pct || asset.Value > val.Value+pct {
 				inside = false
 			}
 		}
@@ -98,7 +100,7 @@ func (pc *PriorityCompare) BandCheck(entries []*factom.Entry, price map[string]m
 }
 
 // Compares entries with price data
-func (pc *PriorityCompare) Compare(entries []*factom.Entry, price map[string]map[string]float64) {
+func (pc *PriorityCompare) Compare(entries []*factom.Entry, price map[string]map[string]polling.PegItem) {
 	comp := new(compete) // global rank
 	miner := make(map[string]bool)
 
@@ -137,7 +139,7 @@ func (pc *PriorityCompare) Compare(entries []*factom.Entry, price map[string]map
 
 			c := new(closest)
 			for source, val := range sources {
-				uval := opr.FloatToUint64(val)
+				uval := opr.FloatToUint64(val.Value)
 				c.add(source, uval, ass.Value)
 			}
 
@@ -172,7 +174,7 @@ func (pc *PriorityCompare) Run() error {
 		<-listener
 	}
 
-	var lastPrices map[string]map[string]float64
+	var lastPrices map[string]map[string]polling.PegItem
 	for event := range listener {
 
 		if event.Minute != 1 {
@@ -189,9 +191,9 @@ func (pc *PriorityCompare) Run() error {
 			cacheWrap[source.Name()] = polling.NewCachedDataSource(source)
 		}
 
-		pa := make(map[string]map[string]float64)
+		pa := make(map[string]map[string]polling.PegItem)
 		for _, asset := range common.AllAssets {
-			pa[asset] = make(map[string]float64)
+			pa[asset] = make(map[string]polling.PegItem)
 			for _, sourceName := range dataSource.AssetSources[asset] {
 				price, err := cacheWrap[sourceName].FetchPegPrice(asset)
 				if err != nil {
@@ -199,7 +201,7 @@ func (pc *PriorityCompare) Run() error {
 					continue
 				}
 
-				pa[asset][sourceName] = price.Value
+				pa[asset][sourceName] = price
 			}
 		}
 		log.Printf("Datasources fetched in %s", time.Since(start))
@@ -214,6 +216,23 @@ func (pc *PriorityCompare) Run() error {
 			} else {
 				pc.Compare(entries, lastPrices)
 				pc.BandCheck(entries, lastPrices)
+
+				f, er := os.Create(fmt.Sprintf("data-%d.txt", event.Dbht-1))
+				if er != nil {
+					log.Print(er)
+				}
+				d, _ := json.Marshal(entries)
+				f.Write(d)
+				f.WriteString("\n")
+				if er != nil {
+					fmt.Println(string(d))
+				}
+				d, _ = json.Marshal(lastPrices)
+				f.Write(d)
+				if er != nil {
+					fmt.Println(string(d))
+				}
+				f.Close()
 			}
 		} else {
 			log.Println("Don't have last block's prices to compare entries to, need to wait for next block")
