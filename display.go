@@ -24,7 +24,7 @@ func contains(a []string, b string) bool {
 }
 
 func (pc *PriorityCompare) Display() {
-	datab, _ := ioutil.ReadFile("data-1.txt")
+	datab, _ := ioutil.ReadFile("data-238486.txt")
 	data := string(datab)
 
 	lines := strings.Split(data, "\n")
@@ -35,7 +35,7 @@ func (pc *PriorityCompare) Display() {
 	json.Unmarshal([]byte(lines[0]), &entries)
 	json.Unmarshal([]byte(lines[1]), &price)
 
-	tmp, err := opr.ParseV2Content(entries[1].Content)
+	tmp, err := opr.ParseV2Content(entries[0].Content)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -61,8 +61,18 @@ func (pc *PriorityCompare) Display() {
 			fmt.Fprintf(tw, "%s\t", pr.DataSource.Name())
 
 			for i := start; i < len(assets) && i < end; i++ {
+
 				if v, ok := price[assets[i].Name][pr.DataSource.Name()]; ok {
-					fmt.Fprintf(tw, "%.8f\t", v.Value)
+					c := new(closest)
+					for _, prr := range pc.ds.PriorityList {
+						c.add(prr.DataSource.Name(), opr.FloatToUint64(price[assets[i].Name][prr.DataSource.Name()].Value), opr.FloatToUint64(assets[i].Value))
+					}
+
+					if c.isBest(pr.DataSource.Name()) {
+						fmt.Fprintf(tw, "(%.8f)\t", v.Value)
+					} else {
+						fmt.Fprintf(tw, "%.8f\t", v.Value)
+					}
 				} else {
 					fmt.Fprintf(tw, "\t")
 				}

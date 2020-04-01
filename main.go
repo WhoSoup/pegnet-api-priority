@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os/user"
@@ -29,9 +28,6 @@ func loadPegnetConfig() *config.Config {
 }
 
 func main() {
-	debug := flag.Bool("debug", false, "print debug output")
-	flag.Parse()
-
 	conf := loadPegnetConfig()
 	dataSource = polling.NewDataSources(conf)
 
@@ -53,9 +49,7 @@ func main() {
 	pc := new(PriorityCompare)
 	pc.ds = dataSource
 
-	if *debug {
-		pc.Display()
-	} else if err := pc.Run(); err != nil {
+	if err := pc.Run(); err != nil {
 		log.Fatalf("App shut down with error: %v", err)
 	}
 }

@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -174,16 +172,16 @@ func (pc *PriorityCompare) Run() error {
 		<-listener
 	}
 
-	var lastPrices map[string]map[string]polling.PegItem
+	prices := make(map[int32]map[string]map[string]polling.PegItem)
 	for event := range listener {
-
 		if event.Minute != 1 {
-			log.Printf("%d minutes until next check", (11-event.Minute)%10)
+			log.Printf("%d minutes until next entry check", (11-event.Minute)%10)
 			continue
 		}
 
+		pa := make(map[string]map[string]polling.PegItem)
 		start := time.Now()
-		log.Printf("Querying Datasources...")
+		log.Printf("Querying Datasources to use for block %d", event.Dbht+1)
 
 		cacheWrap := make(map[string]polling.IDataSource)
 
@@ -191,7 +189,6 @@ func (pc *PriorityCompare) Run() error {
 			cacheWrap[source.Name()] = polling.NewCachedDataSource(source)
 		}
 
-		pa := make(map[string]map[string]polling.PegItem)
 		for _, asset := range common.AllAssets {
 			pa[asset] = make(map[string]polling.PegItem)
 			for _, sourceName := range dataSource.AssetSources[asset] {
@@ -205,10 +202,11 @@ func (pc *PriorityCompare) Run() error {
 			}
 		}
 		log.Printf("Datasources fetched in %s", time.Since(start))
+		prices[event.Dbht+1] = pa
 
-		if lastPrices != nil {
-			start = time.Now()
-			log.Println("Downloading entries...")
+		if lastPrices, ok := prices[event.Dbht-1]; ok {
+			start := time.Now()
+			log.Println("Downloading entries... %")
 			entries, err := pc.getEntries(int64(event.Dbht - 1))
 			log.Println("Entries downloaded in", time.Since(start))
 			if err != nil {
@@ -216,29 +214,11 @@ func (pc *PriorityCompare) Run() error {
 			} else {
 				pc.Compare(entries, lastPrices)
 				pc.BandCheck(entries, lastPrices)
-
-				f, er := os.Create(fmt.Sprintf("data-%d.txt", event.Dbht-1))
-				if er != nil {
-					log.Print(er)
-				}
-				d, _ := json.Marshal(entries)
-				f.Write(d)
-				f.WriteString("\n")
-				if er != nil {
-					fmt.Println(string(d))
-				}
-				d, _ = json.Marshal(lastPrices)
-				f.Write(d)
-				if er != nil {
-					fmt.Println(string(d))
-				}
-				f.Close()
 			}
+			delete(prices, event.Dbht-1)
 		} else {
 			log.Println("Don't have last block's prices to compare entries to, need to wait for next block")
 		}
-
-		lastPrices = pa
 	}
 
 	return nil
