@@ -98,7 +98,7 @@ func (pc *PriorityCompare) BandCheck(entries []*factom.Entry, price map[string]m
 }
 
 // Compares entries with price data
-func (pc *PriorityCompare) Compare(entries []*factom.Entry, price map[string]map[string]polling.PegItem) {
+func (pc *PriorityCompare) Compare(height int32, entries []*factom.Entry, price map[string]map[string]polling.PegItem) {
 	comp := new(compete) // global rank
 	miner := make(map[string]bool)
 
@@ -109,6 +109,14 @@ func (pc *PriorityCompare) Compare(entries []*factom.Entry, price map[string]map
 			log.Println(err)
 			continue
 		}
+		// do some rudimentary error checks
+		if len(tmp.Assets) != len(opr.V4Assets) {
+			continue
+		}
+		if tmp.Height != height {
+			continue
+		}
+
 		o := &opr.V4Content{V2Content: *tmp}
 
 		// only do once per miner
@@ -172,7 +180,7 @@ func (pc *PriorityCompare) Run() error {
 		<-listener
 	}
 
-	prices := make(map[int32]map[string]map[string]polling.PegItem)
+	var lastPrices map[string]map[string]polling.PegItem
 	for event := range listener {
 		if event.Minute != 1 {
 			log.Printf("%d minutes until next entry check", (11-event.Minute)%10)
@@ -202,23 +210,23 @@ func (pc *PriorityCompare) Run() error {
 			}
 		}
 		log.Printf("Datasources fetched in %s", time.Since(start))
-		prices[event.Dbht+1] = pa
 
-		if lastPrices, ok := prices[event.Dbht-1]; ok {
+		if lastPrices != nil {
 			start := time.Now()
-			log.Println("Downloading entries... %")
+			log.Println("Downloading entries...")
 			entries, err := pc.getEntries(int64(event.Dbht - 1))
 			log.Println("Entries downloaded in", time.Since(start))
 			if err != nil {
 				log.Printf("Unable to download entries: %v", err)
 			} else {
-				pc.Compare(entries, lastPrices)
+				pc.Compare(event.Dbht-1, entries, lastPrices)
 				pc.BandCheck(entries, lastPrices)
 			}
-			delete(prices, event.Dbht-1)
 		} else {
 			log.Println("Don't have last block's prices to compare entries to, need to wait for next block")
 		}
+
+		lastPrices = pa
 	}
 
 	return nil

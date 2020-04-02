@@ -19,7 +19,7 @@ func loadPegnetConfig() *config.Config {
 	// load pegnet config
 	u, err := user.Current()
 	if err != nil {
-		panic("Failed to read current user's name")
+		log.Fatal("Failed to read current user's name")
 	}
 
 	configFile := fmt.Sprintf("%s/.pegnet/defaultconfig.ini", u.HomeDir)
