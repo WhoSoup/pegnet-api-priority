@@ -74,8 +74,13 @@ func (pc *PriorityCompare) BandCheck(entries []*factom.Entry, price map[string]m
 		tmp, err := opr.ParseV2Content(e.Content)
 		if err != nil {
 			log.Println(err)
+			continue
 		}
 		o := &opr.V4Content{V2Content: *tmp}
+
+		if len(tmp.Assets) != len(opr.V4Assets) {
+			continue
+		}
 
 		inside := true
 		for _, asset := range o.GetOrderedAssetsFloat() {
