@@ -13,12 +13,6 @@ The app will only pull data from sources that are configured. For the optimal re
 
 There are a few flags:
 
-	serverStart := flag.Bool("server", true, "enable to start a server for extended statistics")
-	serverPort := flag.Int("port", 8080, "the port for the web server (if enabled)")
-
-	flag.StringVar(&debugOut, "debug-save", "", "the filename to dump data to")
-	flag.StringVar(&debugIn, "debug-read", "", "the filename to read data from. in this mode, apis will not be queried")
-
 * `server`: if this flag is present, the debug server will be launched. Default location is `http://localhost:8080/`.
 * `port`: specify the port of the debug server (default 8080)
 * `debug-save`: if you specify a file, the data gathered will be dumped into there at the beginning of every block
