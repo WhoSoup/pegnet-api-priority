@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PegNet API Priority Tool</title>
+</head>
+<body>
+    <ul>
+    {{range $block := .Blocks}}
+        <li><a href="block/{{ $block }}/">{{ $block }}</a></li>
+        {{ else }}
+        No blocks yet
+    {{end}}
+    </ul>
+</body></html>

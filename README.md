@@ -11,6 +11,19 @@ The app takes the [default PegNet reference miner configuration](https://github.
 
 The app will only pull data from sources that are configured. For the optimal results, all sources should be enabled. In practice, just enabling all the free sources should suffice.
 
+There are a few flags:
+
+	serverStart := flag.Bool("server", true, "enable to start a server for extended statistics")
+	serverPort := flag.Int("port", 8080, "the port for the web server (if enabled)")
+
+	flag.StringVar(&debugOut, "debug-save", "", "the filename to dump data to")
+	flag.StringVar(&debugIn, "debug-read", "", "the filename to read data from. in this mode, apis will not be queried")
+
+* `server`: if this flag is present, the debug server will be launched. Default location is `http://localhost:8080/`.
+* `port`: specify the port of the debug server (default 8080)
+* `debug-save`: if you specify a file, the data gathered will be dumped into there at the beginning of every block
+* `debug-read`: if you specify a file containing a file dump from "debug-save", the app will try to load that data. in this mode, the app will only display the contents of the file but not gather new data
+
 # How it works
 
 The app waits for the same events that miners do. At minute 1 of a new block, it pulls the prices. In the next block, it downloads the OPRs that were submitted and compares them to the prices from the last block. The APIs are then sorted by their "win percentage", where a "win" is defined as "the api's price for that asset is closest to the opr". Additionally, a "band check" is performed that tests whether your current configuration is within 1% of the other OPRs.
@@ -35,6 +48,8 @@ Source B:
 For PEG, Source B is closer. For BTC, A is closer. For FCT, B is closer. This results in B having a "win percentage" of 2/3, and A has 1/3. The resulting priority order would be `Source A=0, Source B=1`. 
 
 # Running 
+
+In addition to the console output, V2 adds a graphical analysis of miner submissions and API results. You can view the blocks at `http://localhost:8080/`. Please be aware that not all blocks have complete information. The first block on the list will not yet have the OPRs from mining, and the last block on the list will not have API data.
 
 **Expect to be running this for around 15 minutes before the first results show.**
 

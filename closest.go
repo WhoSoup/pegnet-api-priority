@@ -7,11 +7,11 @@ type closest struct {
 	sources []source
 }
 
-func (c *closest) add(name string, price uint64, reference uint64) {
+func (c *closest) add(name string, price float64, reference float64) {
 	c.sources = append(c.sources, source{name: name, diff: absDiff(price, reference)})
 }
 
-func (c *closest) best() (string, uint64) {
+func (c *closest) best() (string, float64) {
 	if len(c.sources) == 0 {
 		return "no source found", 0
 	}
@@ -40,10 +40,10 @@ func (c *closest) isBest(name string) bool {
 
 type source struct {
 	name string
-	diff uint64
+	diff float64
 }
 
-func absDiff(a, b uint64) uint64 {
+func absDiff(a, b float64) float64 {
 	if a > b {
 		return a - b
 	}

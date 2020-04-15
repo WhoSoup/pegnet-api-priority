@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PegNet API Priority Tool</title>
+<style type="text/css">
+* {
+    font-family: sans-serif;
+}
+</style>
+</head>
+<body>
+<a href="/">Back</a>
+
+{{ if not .HasAPIs }}
+    <h2 style="color: red">This block does not have any API price results!</h2>
+{{end}}
+{{ if not .HasOPRs }}
+    <h2 style="color: red">This block does not have any mining results!</h2>
+{{end}}
+
+<h1>Block {{ .Height }}</h1>
+
+{{ range $asset, $info := .Data }}
+<a href="#{{$asset}}">{{$asset}}</a> 
+{{ end }}
+
+
+{{ range $asset, $info := .Data }}
+    <hr style="height: 4px; background-color: green">
+    <h2 id="{{ $asset }}">{{ $asset }} <a href="/raw/{{$.Height}}/{{$asset}}" style="font-size: 14px">(Raw Data)</a></h2>
+    <img src="/image/{{ $.Height }}/{{ $asset }}" />
+{{ end }}
+
+</body></html>
