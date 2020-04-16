@@ -6,7 +6,7 @@ A small tool that attempts to determine a data source priority order that should
 
 The app takes the [default PegNet reference miner configuration](https://github.com/pegnet/pegnet/blob/master/config/defaultconfig.ini), located at the default location: `%HOME%/.pegnet/defaultconfig.ini`. 
 
-* `[Miner].FactomdLocation` sets the location of the factomd endpoint. You can use the open node with this.
+* `[Miner].FactomdLocation` (NO trailing /v2) sets the location of the factomd endpoint. You can use the open node with this.
 * `[OracleDataSources]` configures which sources should be active. Data sources that require an API key need to be configured in the `[Oracle]` section.
 
 The app will only pull data from sources that are configured. For the optimal results, all sources should be enabled. In practice, just enabling all the free sources should suffice.
