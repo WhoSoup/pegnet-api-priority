@@ -80,7 +80,7 @@ func (pc *PriorityCompare) GetBlock(height int32) *Info {
 		info.Height = height
 		info.Data = make(map[string]MoreInfo)
 
-		for _, a := range opr.V4Assets {
+		for _, a := range opr.V5Assets {
 			if a == "USD" {
 				continue
 			}
@@ -243,14 +243,14 @@ func (pc *PriorityCompare) saveEntries(height int32) {
 		}
 
 		// do some rudimentary error checks
-		if len(tmp.Assets) != len(opr.V4Assets) {
+		if len(tmp.Assets) != len(opr.V5Assets) {
 			continue
 		}
 		if tmp.Height != height {
 			continue
 		}
 
-		o := &opr.V4Content{V2Content: *tmp}
+		o := &opr.V5Content{V2Content: *tmp}
 
 		hash := sha256.Sum256(e.Content)
 		id := fmt.Sprintf("%s-%x", o.GetID(), hash)
